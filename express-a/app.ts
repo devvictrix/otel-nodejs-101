@@ -1,25 +1,58 @@
 /*app.ts*/
 
 // 1. โหลด environment variables เข้ามาก่อนเป็นอันดับแรก
-import 'dotenv/config';
+import "dotenv/config";
 
 // 2. เริ่มการทำงานของ OpenTelemetry SDK เป็นอันดับสอง
-import './instrumentation';
+import "./instrumentation";
 
-import express, { Express } from 'express';
+import express, { Express } from "express";
+import axios, { isCancel, AxiosError } from "axios";
 
-const PORT: number = parseInt(process.env.PORT || '8080');
+const PORT: number = parseInt(process.env.PORT || "8080");
 const app: Express = express();
 
 function getRandomNumber(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-app.get('/rolldice', (req, res) => {
+app.get("/", async (req, res) => {
+  try {
+    const response = await axios.get("http://localhost:8081");
+    console.log("Response from service B:", response.data);
+
+    // Generate a response from Ollama
+    const ollamaResponse = await axios.post(
+      "http://localhost:11434/api/generate",
+      {
+        model: "llama3.2",
+        prompt: `Generate a friendly greeting message that includes the following text: "${response.data}"`,
+        stream: false,
+      }
+    );
+
+    const ollamaText = ollamaResponse.data.response;
+    console.log("Ollama response:", ollamaText);
+    res.send(`Response from Ollama: ${ollamaText}`);
+
+  } catch (error) {
+    if (isCancel(error)) {
+      console.log("Request canceled", error.message);
+      res.status(499).send("Client Closed Request");
+    } else if (error instanceof AxiosError) {
+      console.error("Axios error:", error.message);
+      res.status(502).send("Bad Gateway");
+    } else {
+      console.error("Unexpected error:", error);
+      res.status(500).send("Internal Server Error");
+    }
+  }
+});
+
+app.get("/rolldice", (req, res) => {
   res.send(getRandomNumber(1, 6).toString());
 });
 
 app.listen(PORT, () => {
   console.log(`Listening for requests on http://localhost:${PORT}`);
 });
-
