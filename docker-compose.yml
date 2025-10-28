@@ -1,0 +1,72 @@
+services:
+  # Jaeger for trace visualization
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686" # Jaeger UI
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - app-network
+
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    pull_policy: always
+    tty: true
+    networks:
+      - app-network
+
+  # Express Service
+  express:
+    build:
+      context: ./express
+      dockerfile: Dockerfile
+    container_name: express
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - OTEL_SERVICE_NAME=express
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - OLLAMA_URL=http://ollama:11434
+      - NESTJS_SERVICE_URL=http://nestjs:3000
+    depends_on:
+      - ollama
+      - jaeger
+      - nestjs
+    networks:
+      - app-network
+    volumes:
+      - ./express:/app
+      - /app/node_modules
+
+  nestjs:
+    build:
+      context: ./nestjs
+      dockerfile: Dockerfile
+    container_name: nestjs
+    ports:
+      - "8081:3000"
+    environment:
+      - PORT=3000
+      - OTEL_SERVICE_NAME=nestjs
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+    depends_on:
+      - ollama
+      - jaeger
+    networks:
+      - app-network
+
+volumes:
+  ollama-data:
+
+networks:
+  app-network:
+    driver: bridge

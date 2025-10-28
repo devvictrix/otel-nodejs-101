@@ -6,6 +6,8 @@ import "dotenv/config";
 // 2. เริ่มการทำงานของ OpenTelemetry SDK เป็นอันดับสอง
 import "./instrumentation";
 
+import { instrumentRollDice } from "./manual-instrumentation";
+
 import express, { Express } from "express";
 import axios, { isCancel, AxiosError } from "axios";
 
@@ -18,12 +20,16 @@ function getRandomNumber(min: number, max: number) {
 
 app.get("/", async (req, res) => {
   try {
-    const response = await axios.get("http://localhost:8081");
+    // Use service names for Docker networking
+    const nestjsServiceUrl = process.env.NESTJS_SERVICE_URL || "http://nestjs:8080";
+    const ollamaUrl = process.env.OLLAMA_URL || "http://ollama:11434";
+    
+    const response = await axios.get(nestjsServiceUrl);
     console.log("Response from service B:", response.data);
 
     // Generate a response from Ollama
     const ollamaResponse = await axios.post(
-      "http://localhost:11434/api/generate",
+      `${ollamaUrl}/api/generate`,
       {
         model: "llama3.2",
         prompt: `Generate a friendly greeting message that includes the following text: "${response.data}"`,
@@ -50,7 +56,20 @@ app.get("/", async (req, res) => {
 });
 
 app.get("/rolldice", (req, res) => {
-  res.send(getRandomNumber(1, 6).toString());
+  try {
+    // Option 1: Simple manual instrumentation
+    const result = instrumentRollDice(() => getRandomNumber(1, 6));
+    res.send(result.toString());
+    
+    // Option 2: Context-aware instrumentation (commented out)
+    // const ctx = trace.getContext();
+    // const result = instrumentRollDiceWithContext(() => getRandomNumber(1, 6), ctx);
+    // res.send(result.toString());
+    
+  } catch (error) {
+    console.error('Error in rolldice:', error);
+    res.status(500).send('Internal Server Error');
+  }
 });
 
 app.listen(PORT, () => {
