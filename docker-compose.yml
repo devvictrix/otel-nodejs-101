@@ -23,6 +23,21 @@ services:
     networks:
       - app-network
 
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=mydb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
   # Express Service
   express:
     build:
@@ -37,9 +52,11 @@ services:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
       - OLLAMA_URL=http://ollama:11434
       - NESTJS_SERVICE_URL=http://nestjs:3000
+      - DATABASE_URL=postgresql://admin:password@postgres:5432/mydb
     depends_on:
       - ollama
       - jaeger
+      - postgres
       - nestjs
     networks:
       - app-network
@@ -58,14 +75,17 @@ services:
       - PORT=3000
       - OTEL_SERVICE_NAME=nestjs
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+      - DATABASE_URL=file:./dev.db
     depends_on:
       - ollama
       - jaeger
+      - postgres
     networks:
       - app-network
 
 volumes:
   ollama-data:
+  postgres-data:
 
 networks:
   app-network:
