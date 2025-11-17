@@ -1,0 +1,64 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int       @id @default(autoincrement())
+  email    String    @unique
+  name     String?
+  bookings Booking[]
+}
+
+model Event {
+  id    Int    @id @default(autoincrement())
+  name  String
+  date  DateTime
+  seats Seat[]
+}
+
+model Seat {
+  id         Int      @id @default(autoincrement())
+  seatNumber String // e.g., "A1", "B12"
+  status     SeatStatus @default(AVAILABLE)
+  
+  eventId    Int
+  event      Event    @relation(fields: [eventId], references: [id])
+
+  bookingId  Int?
+  booking    Booking? @relation(fields: [bookingId], references: [id])
+
+  @@unique([eventId, seatNumber]) // A seat number must be unique per event
+}
+
+model Booking {
+  id        Int           @id @default(autoincrement())
+  status    BookingStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  expiresAt DateTime
+
+  userId    Int
+  user      User          @relation(fields: [userId], references: [id])
+  seats     Seat[]
+}
+
+enum SeatStatus {
+  AVAILABLE
+  HELD
+  SOLD
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}

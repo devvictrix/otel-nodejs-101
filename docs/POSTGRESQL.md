@@ -1,0 +1,1 @@
+docker compose exec postgres psql -U admin -d mydb -c "SHOW max_connections;"
